@@ -1,1 +1,0 @@
-# wind-atlas-app
