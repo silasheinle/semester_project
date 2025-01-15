@@ -8,83 +8,107 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden; /* Verhindert äußere Scrollbars */
+    }
 
-        h1, h2 {
-            text-align: center;
-        }
+    h1, h2 {
+        text-align: center;
+    }
 
-        .container {
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-        }
+    .container {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+        overflow: hidden;
+    }
 
-        #map {
-            flex-grow: 1;
-            height: 400px;
-            width: 100%;
-        }
+    #map {
+        flex-grow: 1;
+        height: 50%; /* Karte nimmt die obere Hälfte der Seite ein */
+        width: 100%;
+    }
 
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-bottom: 10px;
-        }
+    table {
+        border-collapse: collapse;
+        width: 100%; /* Die Tabelle füllt immer die verfügbare Breite */
+    }
 
-        table, th, td {
-            border: 1px solid #ddd;
-        }
+    table, th, td {
+        border: 1px solid #ddd;
+    }
 
-        th, td {
-            padding: 8px;
-            text-align: center;
-        }
+    th, td {
+        padding: 8px;
+        text-align: center;
+        white-space: nowrap; /* Verhindert Umbrüche innerhalb von Zellen */
+    }
 
-        th {
-            background-color: #4CAF50;
-            color: white;
-        }
+    th {
+        background-color: #4CAF50;
+        color: white;
+    }
 
-        .filter {
-            text-align: center;
-            margin: 10px;
-        }
+    .filter {
+        text-align: center;
+        margin: 10px;
+    }
 
-        .footer {
-            text-align: center;
-            padding: 10px;
-            background-color: #333;
-            color: white;
-        }
+    .footer {
+        text-align: center;
+        padding: 10px;
+        background-color: #333;
+        color: white;
+    }
 
-        .button-container {
-            text-align: center;
-            margin: 10px;
-        }
+    .button-container {
+        text-align: center;
+        margin: 10px;
+    }
 
-        .button-container button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
+    .button-container button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+    }
 
-        .button-container button:hover {
-            background-color: #45a049;
-        }
-    </style>
+    .button-container button:hover {
+        background-color: #45a049;
+    }
+    #data-table {
+        width: 100%;
+    }
+
+    tbody {
+        display: block;
+        max-height: calc(50vh - 60px); /* Verfügbarer Platz unterhalb der Karte */
+        overflow-y: auto; /* Nur vertikales Scrollen innerhalb des Tabelleninhalts */
+        overflow-x: hidden; /* Horizontales Scrollen deaktivieren */
+    }
+
+    thead, tbody tr {
+        display: table;
+        width: 100%;
+        table-layout: fixed; /* Erzwingt gleiche Spaltenbreite */
+    }
+
+    thead {
+        width: 100%; /* Kopfzeile bleibt auf die Tabellenbreite beschränkt */
+    }
+</style>
+
+
 </head>
 <body>
     <header>
@@ -115,11 +139,11 @@
             </thead>
             <tbody></tbody>
         </table>
-        
+
         <header>
         <h2>Durchschnittswerte basierend auf dem Filter</h2>
         </header>
-        
+
         <!-- Filter -->
         <div class="filter">
             <label for="filter">Filter:</label>
@@ -163,49 +187,58 @@
             tableBody.innerHTML = '';
             data.forEach(station => {
                 const row = document.createElement('tr');
-                row.innerHTML = 
+                row.innerHTML = `
                     <td>${station.station_id}</td>
-                    <td>${station.longitude}</td>
-                    <td>${station.latitude}</td>
-                    <td>${station.windSpeed.toFixed(2)} km/h</td>
+                    <td>${Math.round(station.longitude)}</td>
+                    <td>${Math.round(station.latitude)}</td>
+                    <td>${Math.round(station.windSpeed)} km/h</td>
                     <td>${translateWindDirection(station.windDirection)}</td>
-                    <td>${station.pressure.toFixed(2)} hPa</td>
-                    <td>${station.humidity.toFixed(2)}%</td>
-                    <td>${station.temperature.toFixed(2)}°C</td>
-                ;
+                    <td>${Math.round(station.pressure)} hPa</td>
+                    <td>${Math.round(station.humidity)}%</td>
+                    <td>${Math.round(station.temperature)}°C</td>
+                `;
                 tableBody.appendChild(row);
             });
         }
 
         function updateMap(latestData, avgData) {
-            for (const key in markers) {
-                map.removeLayer(markers[key]);
-            }
-
             latestData.forEach(station => {
                 const avgStationData = avgData[station.station_id];
-                const marker = L.marker([station.latitude, station.longitude]).addTo(map)
-                    .bindPopup(
-                        <b>Station ID: ${station.station_id}</b><br>
-                        Durchschnittliche Windgeschwindigkeit: ${avgStationData.avgWindSpeed.toFixed(2)} km/h<br>
+                if (markers[station.station_id]) {
+                    // Update des Popups eines bestehenden Markers
+                    markers[station.station_id].setPopupContent(
+                        `<b>Station ID: ${station.station_id}</b><br>
+                        Durchschnittliche Windgeschwindigkeit: ${Math.round(avgStationData.avgWindSpeed)} km/h<br>
                         Häufigste Windrichtung: ${translateWindDirection(avgStationData.mostCommonWindDirection)}<br>
-                        Durchschnittlicher Luftdruck: ${avgStationData.avgPressure.toFixed(2)} hPa<br>
-                        Durchschnittliche Luftfeuchtigkeit: ${avgStationData.avgHumidity.toFixed(2)}%<br>
-                        Durchschnittliche Temperatur: ${avgStationData.avgTemperature.toFixed(2)}°C
+                        Durchschnittlicher Luftdruck: ${Math.round(avgStationData.avgPressure)} hPa<br>
+                        Durchschnittliche Luftfeuchtigkeit: ${Math.round(avgStationData.avgHumidity)}%<br>
+                        Durchschnittliche Temperatur: ${Math.round(avgStationData.avgTemperature)}°C`
                     );
-                markers[station.station_id] = marker;
+                } else {
+                    // Neuer Marker wird hinzugefügt
+                    const marker = L.marker([station.latitude, station.longitude]).addTo(map)
+                        .bindPopup(
+                            `<b>Station ID: ${station.station_id}</b><br>
+                            Durchschnittliche Windgeschwindigkeit: ${Math.round(avgStationData.avgWindSpeed)} km/h<br>
+                            Häufigste Windrichtung: ${translateWindDirection(avgStationData.mostCommonWindDirection)}<br>
+                            Durchschnittlicher Luftdruck: ${Math.round(avgStationData.avgPressure)} hPa<br>
+                            Durchschnittliche Luftfeuchtigkeit: ${Math.round(avgStationData.avgHumidity)}%<br>
+                            Durchschnittliche Temperatur: ${Math.round(avgStationData.avgTemperature)}°C`
+                        );
+                    markers[station.station_id] = marker;
 
-                marker.on('click', () => {
-                    selectedStation = station.station_id;
-                    updateTable([station]);
-                });
+                    marker.on('click', () => {
+                        selectedStation = station.station_id;
+                        updateTable([station]);
+                    });
+                }
             });
         }
 
         function applyFilter() {
             const filter = document.getElementById('filter').value;
 
-            fetch(/api/filter?filter=${filter})
+            fetch(`/api/filter?filter=${filter}`)
                 .then(response => response.json())
                 .then(data => {
                     currentTableData = data.latest;
@@ -244,7 +277,7 @@
         });
 
         document.addEventListener('DOMContentLoaded', () => {
-            fetch(/api/filter?filter=24h)
+            fetch(`/api/filter?filter=24h`)
                 .then(response => response.json())
                 .then(data => {
                     currentTableData = data.latest;
